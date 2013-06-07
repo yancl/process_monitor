@@ -153,8 +153,7 @@ class TaskCounter(object):
 class ProcessCounter(object):
     def __init__(self, pid):
         self._pid = pid
-        tids = self.list_tids()
-        self._task_counters = [TaskCounter(tid) for tid in tids]
+        self._update_tids()
 
     def update_tasks_stats(self):
         tasks_delta = Stats.build_all_zero()
@@ -166,7 +165,11 @@ class ProcessCounter(object):
             return (None, None)
         return (tasks_delta, int(total_duration/len(self._task_counters)))
 
-    def list_tids(self):
+    def _update_tids(self):
+        tids = self.update_tids()
+        self._task_counters = [TaskCounter(tid) for tid in tids]
+
+    def _list_tids(self):
         try:
             tids = list(map(int, os.listdir('/proc/%d/task' % self._pid)))
         except OSError:
