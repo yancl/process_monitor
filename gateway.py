@@ -47,7 +47,7 @@ class o_info:
         wi = web.input()
         key = (wi.get('h'), wi.get('s'))
         data = storage.get(key)
-        return render_json('data')
+        return render_json(data)
 
 
 wsgi_app = app.wsgifunc()
