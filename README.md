@@ -10,4 +10,4 @@ and the taskstats_struct see [here](https://www.kernel.org/doc/Documentation/acc
 gateway
 =======
 
-Restful interface for set and get status of some service on some host.
+Restful setter and getter service for status of some service on some host.
