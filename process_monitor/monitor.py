@@ -109,9 +109,8 @@ class ProcessMonitor(object):
 
         m['list'] = l
         js = json.dumps(m) 
-        print js
         payload = {'json':js}
-        self._session.post('http://192.168.0.186:8080/i/update', params=payload)
+        self._session.post('http://192.168.0.189:7001/i/update', params=payload)
 
     def _report_worker(self):
         while True:
