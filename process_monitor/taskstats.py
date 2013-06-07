@@ -145,6 +145,9 @@ class TaskCounter(object):
             # Short reply
             return
         taskstats_version = struct.unpack('H', taskstats_data[:2])[0]
+        taskstats_ac_utime = struct.unpack('Q', taskstats_data[152:160])[0]
+        taskstats_ac_stime = struct.unpack('Q', taskstats_data[160:168])[0]
+        #print 'utime:',taskstats_ac_utime, 'stime:',taskstats_ac_stime
         assert taskstats_version >= 4
         self._update_stats(Stats(taskstats_data))
         return self._stats_delta
@@ -166,7 +169,7 @@ class ProcessCounter(object):
         return (tasks_delta, int(total_duration/len(self._task_counters)))
 
     def _update_tids(self):
-        tids = self.update_tids()
+        tids = self._list_tids()
         self._task_counters = [TaskCounter(tid) for tid in tids]
 
     def _list_tids(self):
