@@ -58,7 +58,8 @@ class ProcessMonitor(object):
         m = {}
         for (pid, pcounter) in self._process_ids_counter_m.iteritems():
             (delta, duration) = pcounter.update_tasks_stats()
-            m[pid] = {'delta': delta, 'duration':duration}
+            if delta:
+                m[pid] = {'delta': delta, 'duration':duration}
         return m
 
     def _trans_id_to_name(self, id_m):

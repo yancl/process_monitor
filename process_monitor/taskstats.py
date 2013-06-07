@@ -145,6 +145,9 @@ class TaskCounter(object):
             # Short reply
             return
         taskstats_version = struct.unpack('H', taskstats_data[:2])[0]
+        taskstats_ac_utime = struct.unpack('Q', taskstats_data[152:160])[0]
+        taskstats_ac_stime = struct.unpack('Q', taskstats_data[160:168])[0]
+        #print 'utime:',taskstats_ac_utime, 'stime:',taskstats_ac_stime
         assert taskstats_version >= 4
         self._update_stats(Stats(taskstats_data))
         return self._stats_delta
@@ -153,8 +156,7 @@ class TaskCounter(object):
 class ProcessCounter(object):
     def __init__(self, pid):
         self._pid = pid
-        tids = self.list_tids()
-        self._task_counters = [TaskCounter(tid) for tid in tids]
+        self._update_tids()
 
     def update_tasks_stats(self):
         tasks_delta = Stats.build_all_zero()
@@ -166,7 +168,11 @@ class ProcessCounter(object):
             return (None, None)
         return (tasks_delta, int(total_duration/len(self._task_counters)))
 
-    def list_tids(self):
+    def _update_tids(self):
+        tids = self._list_tids()
+        self._task_counters = [TaskCounter(tid) for tid in tids]
+
+    def _list_tids(self):
         try:
             tids = list(map(int, os.listdir('/proc/%d/task' % self._pid)))
         except OSError:
