@@ -23,6 +23,8 @@ class Stats(DumpableObject):
     members_offsets = [
         ('blkio_delay_total', 40),
         ('swapin_delay_total', 56),
+        #('coremem', 184),
+        #('virtmem', 192),
         ('read_bytes', 248),
         ('write_bytes', 256),
         ('cancelled_write_bytes', 264)
@@ -115,6 +117,11 @@ class TaskCounter(object):
         self.duration = None
         self._timestamp = time.time()
 
+        #self.taskstats_ac_utime = 0 
+        #self.taskstats_ac_stime = 0
+        #self.taskstats_high_water_rss = 0
+        #self.taskstats_high_water_vm = 0
+
     def _update_stats(self, stats):
         if not self._stats_total:
             self._stats_total = stats
@@ -145,9 +152,17 @@ class TaskCounter(object):
             # Short reply
             return
         taskstats_version = struct.unpack('H', taskstats_data[:2])[0]
-        taskstats_ac_utime = struct.unpack('Q', taskstats_data[152:160])[0]
-        taskstats_ac_stime = struct.unpack('Q', taskstats_data[160:168])[0]
+        #self.taskstats_ac_utime = struct.unpack('Q', taskstats_data[152:160])[0]
+        #self.taskstats_ac_stime = struct.unpack('Q', taskstats_data[160:168])[0]
+        #self.taskstats_coremem = struct.unpack('Q', taskstats_data[184:192])[0]
+        #self.taskstats_virtmem = struct.unpack('Q', taskstats_data[192:200])[0]
+        #self.taskstats_high_water_rss = struct.unpack('Q', taskstats_data[200:208])[0]
+        #self.taskstats_high_water_vm = struct.unpack('Q', taskstats_data[208:216])[0]
+        #print 'high water rss:', taskstats_high_water_rss
         #print 'utime:',taskstats_ac_utime, 'stime:',taskstats_ac_stime
+        #print 'tid:',self._tid
+        #print 'coremem:',self.taskstats_coremem
+        #print 'virtmem:',self.taskstats_virtmem
         assert taskstats_version >= 4
         self._update_stats(Stats(taskstats_data))
         return self._stats_delta
@@ -162,11 +177,19 @@ class ProcessCounter(object):
         tasks_delta = Stats.build_all_zero()
         total_duration = 0
         for task_counter in self._task_counters:
-            tasks_delta.accumulate(task_counter.update_task_stats(), tasks_delta)
-            total_duration += task_counter.duration
+            t = task_counter.update_task_stats()
+            if t:
+                tasks_delta.accumulate(t, tasks_delta)
+                total_duration += task_counter.duration
         if not self._task_counters:
             return (None, None)
-        return (tasks_delta, int(total_duration/len(self._task_counters)))
+
+        #self.taskstats_high_water_rss = 0
+        #self.taskstats_high_water_vm = 0
+        #return (self._task_counters[0].taskstats_high_water_rss,
+               # self._task_counters[0].taskstats_high_water_vm,
+        return (tasks_delta,
+                int(total_duration/len(self._task_counters)))
 
     def _update_tids(self):
         tids = self._list_tids()

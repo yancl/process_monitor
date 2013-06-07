@@ -1,4 +1,8 @@
 import time
+import socket
+import urllib2
+import json
+import requests
 from threading import Thread, Lock
 from Queue import Queue
 from taskstats import ProcessCounter, Stats
@@ -11,6 +15,8 @@ class ProcessMonitor(object):
         self._process_ids_counter_m = {}
         self._process_id_name_m = {}
         self._process_name_ids_m = {}
+        self._hostname = socket.gethostname()
+        self._session = requests.session()
         self._update_lock = Lock()
         self._refresh_process_names()
         self._q = Queue(maxsize=1000)
@@ -82,13 +88,38 @@ class ProcessMonitor(object):
             name_m = self._trans_id_to_name(id_m)
             return name_m
 
-    def _report_data(self, data):
-        print data
+    def _report_data(self, d):
+        m = {}
+        m['host'] = self._hostname
+        l = []
+        for (k, v) in d.iteritems():
+            duration = int(v['duration'])
+            if not duration:
+                continue
+            delta = v['delta']
+            l.append({'service':k,
+                        'data':{
+                            'read_bytes': delta.read_bytes/duration,
+                            'write_bytes': delta.write_bytes/duration
+                        }
+                    })
+
+        if not l:
+            return
+
+        m['list'] = l
+        js = json.dumps(m) 
+        print js
+        payload = {'json':js}
+        self._session.post('http://192.168.0.186:8080/i/update', params=payload)
 
     def _report_worker(self):
         while True:
-            item = self._q.get(block=True)
-            self._report_data(item)
+            try:
+                item = self._q.get(block=True)
+                self._report_data(item)
+            except Exception,e:
+                print e
 
     def run(self):
         #start reporter first
@@ -109,3 +140,4 @@ class ProcessMonitor(object):
 
 if __name__ == '__main__':
     ProcessMonitor(['carbon-cache.py']).run()
+    #ProcessMonitor(['java']).run()
