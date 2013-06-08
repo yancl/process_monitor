@@ -55,7 +55,16 @@ class o_info:
         wi = web.input()
         key = (wi.get('h'), wi.get('s'))
         data = storage.get(key)
-        return render_json(data)
+        data.update({
+            'mem': 0,
+            'cpu': 0,
+        })
+        segs = ['<pre>\n']
+        for k, v in data.iteritems():
+            segs.append('%s:%s\n' % (k, v))
+        segs.append('</pre>\n')
+        web.header('Content-Type','text/plain; charset=utf-8')
+        return ''.join(segs)
 
 
 class o_view:
