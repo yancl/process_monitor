@@ -22,7 +22,7 @@ setup(
         license='MIT License',
         zip_safe=False,
         install_requires=[
-            'distribute',
+            'distribute', 'requests', 'web.py'
         ],
         tests_require=[
             'nose',
