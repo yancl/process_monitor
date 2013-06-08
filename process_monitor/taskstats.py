@@ -19,12 +19,30 @@ class DumpableObject(object):
 # Interesting fields in a taskstats output
 #
 
+class ProcStat(object):
+    _columns = ( 'pid','tcomm','state','ppid','pgid','sid',
+                'tty_nr','tty_pgrp','flags','min_flt',
+                'cmin_flt','maj_flt','cmaj_flt',
+                'utime','stime','cutime','cstime',
+                'priority','nice','num_threads',
+                'it_real_value','start_time',
+                'vsize','rss','rsslim','start_code','end_code',
+                'start_stack','esp','eip','pending','blocked',
+                'sigign','sigcatch','wchan','zero1','zero2',
+                'exit_signal','cpu','rt_priority','policy')
+
+    @classmethod
+    def proc(cls, pid):
+        with open('/proc/%d/stat' % pid) as f:
+            vs = f.read().split(' ')
+            return dict(zip(cls._columns, vs))
+
+
+
 class Stats(DumpableObject):
     members_offsets = [
         ('blkio_delay_total', 40),
         ('swapin_delay_total', 56),
-        #('coremem', 184),
-        #('virtmem', 192),
         ('read_bytes', 248),
         ('write_bytes', 256),
         ('cancelled_write_bytes', 264)
@@ -117,11 +135,6 @@ class TaskCounter(object):
         self.duration = None
         self._timestamp = time.time()
 
-        #self.taskstats_ac_utime = 0 
-        #self.taskstats_ac_stime = 0
-        #self.taskstats_high_water_rss = 0
-        #self.taskstats_high_water_vm = 0
-
     def _update_stats(self, stats):
         if not self._stats_total:
             self._stats_total = stats
@@ -152,17 +165,6 @@ class TaskCounter(object):
             # Short reply
             return
         taskstats_version = struct.unpack('H', taskstats_data[:2])[0]
-        #self.taskstats_ac_utime = struct.unpack('Q', taskstats_data[152:160])[0]
-        #self.taskstats_ac_stime = struct.unpack('Q', taskstats_data[160:168])[0]
-        #self.taskstats_coremem = struct.unpack('Q', taskstats_data[184:192])[0]
-        #self.taskstats_virtmem = struct.unpack('Q', taskstats_data[192:200])[0]
-        #self.taskstats_high_water_rss = struct.unpack('Q', taskstats_data[200:208])[0]
-        #self.taskstats_high_water_vm = struct.unpack('Q', taskstats_data[208:216])[0]
-        #print 'high water rss:', taskstats_high_water_rss
-        #print 'utime:',taskstats_ac_utime, 'stime:',taskstats_ac_stime
-        #print 'tid:',self._tid
-        #print 'coremem:',self.taskstats_coremem
-        #print 'virtmem:',self.taskstats_virtmem
         assert taskstats_version >= 4
         self._update_stats(Stats(taskstats_data))
         return self._stats_delta
@@ -171,29 +173,43 @@ class TaskCounter(object):
 class ProcessCounter(object):
     def __init__(self, pid):
         self._pid = pid
-        self._update_tids()
+        self._task_counters = {}
+        (self._rss, self._vm, self._stime, self._utime, self._num_threads) = self._get_proc()
+        self._timestamp = time.time()
 
     def update_tasks_stats(self):
+        self._update_tids()
         tasks_delta = Stats.build_all_zero()
         total_duration = 0
-        for task_counter in self._task_counters:
+        for task_counter in self._task_counters.values():
             t = task_counter.update_task_stats()
             if t:
                 tasks_delta.accumulate(t, tasks_delta)
                 total_duration += task_counter.duration
         if not self._task_counters:
             return (None, None)
+        (rss, vm, stime, utime, num_threads) = self._get_proc()
+        t = time.time()
+        duration = t - self._timestamp
+        self._timestamp = t
+        diff_stime = stime - self._stime
+        diff_utime = utime - self._utime
+        (self._rss, self._vm, self._stime, self._utime, self._num_threads) = (rss, vm, stime, utime, num_threads)
+        cpu_usage = ((diff_stime + diff_utime) / duration)
+        return (cpu_usage, self._num_threads, self._vm, self._rss, tasks_delta, int(total_duration/len(self._task_counters)))
 
-        #self.taskstats_high_water_rss = 0
-        #self.taskstats_high_water_vm = 0
-        #return (self._task_counters[0].taskstats_high_water_rss,
-               # self._task_counters[0].taskstats_high_water_vm,
-        return (tasks_delta,
-                int(total_duration/len(self._task_counters)))
+    def _get_proc(self):
+        stat = ProcStat.proc(self._pid)
+        rss = int(stat['rss'])*4*1024
+        vm  = int(stat['vsize'])
+        #HZ is 1/100
+        stime = int(stat['stime']) * 0.01 #seconds
+        utime = int(stat['utime']) * 0.01
+        num_threads = stat['num_threads']
+        return (rss, vm, stime, utime, num_threads)
 
     def _update_tids(self):
-        tids = self._list_tids()
-        self._task_counters = [TaskCounter(tid) for tid in tids]
+        self._compute_diff_tids()
 
     def _list_tids(self):
         try:
@@ -201,3 +217,17 @@ class ProcessCounter(object):
         except OSError:
             return []
         return tids
+
+    def _compute_diff_tids(self):
+        tids = self._list_tids()
+        old_tids = self._task_counters.keys()
+        died_tids = set(old_tids) - set(tids)
+        new_tids = set(tids) - set(old_tids)
+        for tid in new_tids:
+            self._task_counters[tid] = TaskCounter(tid)
+        for tid in died_tids:
+            self._task_counters.pop(tid)
+
+
+if __name__ == '__main__':
+    print ProcStat.proc(10894)

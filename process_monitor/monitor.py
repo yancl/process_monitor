@@ -63,9 +63,10 @@ class ProcessMonitor(object):
     def _update_processes(self):
         m = {}
         for (pid, pcounter) in self._process_ids_counter_m.iteritems():
-            (delta, duration) = pcounter.update_tasks_stats()
+            (cpu_usage, num_threads, vm, rss, delta, duration) = pcounter.update_tasks_stats()
             if delta:
-                m[pid] = {'delta': delta, 'duration':duration}
+                m[pid] = {'delta': delta, 'duration':duration, 'vm': vm, 'rss': rss,
+                        'cpu_usage': cpu_usage, 'num_threads': int(num_threads)}
         return m
 
     def _trans_id_to_name(self, id_m):
@@ -77,9 +78,23 @@ class ProcessMonitor(object):
                 if v0:
                     acc_stats = Stats.build_all_zero()
                     v['delta'].accumulate(v0['delta'], acc_stats)
-                    name_m[name] = {'delta': acc_stats, 'duration':(int(v0['duration'])+int(v['duration']))/2.0}
+                    name_m[name] = {'delta': acc_stats,
+                                    'duration':(int(v0['duration']) + int(v['duration']))/2.0,
+                                    'vm':(int(v0['vm']) + int(v['vm'])),
+                                    'rss':(int(v0['rss'] + int(v['rss']))),
+                                    'cpu_usage': (v0['cpu_usage'] + v['cpu_usage']),
+                                    'num_threads': (v0['num_threads'] + v['num_threads']),
+                                    'num_processes': int(v0['num_processes']) + 1
+                                    }
                 else:
-                    name_m[name] = {'delta':v['delta'], 'duration':v['duration']}
+                    name_m[name] = {'delta':v['delta'],
+                                    'duration':v['duration'],
+                                    'vm':v['vm'],
+                                    'rss':v['rss'],
+                                    'cpu_usage': v['cpu_usage'],
+                                    'num_threads': v['num_threads'],
+                                    'num_processes': 1,
+                                    }
         return name_m
 
     def _refresh_processes(self):
@@ -100,7 +115,12 @@ class ProcessMonitor(object):
             l.append({'service':k,
                         'data':{
                             'read_bytes': delta.read_bytes/duration,
-                            'write_bytes': delta.write_bytes/duration
+                            'write_bytes': delta.write_bytes/duration,
+                            'rss': v['rss'],
+                            'vm': v['vm'],
+                            'cpu_usage': v['cpu_usage'],
+                            'num_threads': v['num_threads'],
+                            'num_processes': v['num_processes'],
                         }
                     })
 
@@ -134,9 +154,9 @@ class ProcessMonitor(object):
                 self._q.put_nowait(name_resources_delta)
             except Full,e:
                 print e
-            time.sleep(10)
+            time.sleep(60)
 
 
 if __name__ == '__main__':
-    ProcessMonitor(['carbon-cache.py']).run()
-    #ProcessMonitor(['java']).run()
+    #ProcessMonitor(['carbon-cache.py']).run()
+    ProcessMonitor(['java']).run()
