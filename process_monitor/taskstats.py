@@ -187,7 +187,7 @@ class ProcessCounter(object):
                 tasks_delta.accumulate(t, tasks_delta)
                 total_duration += task_counter.duration
         if not self._task_counters:
-            return (None, None)
+            return (None, None, None, None, None, None)
         (rss, vm, stime, utime, num_threads) = self._get_proc()
         t = time.time()
         duration = t - self._timestamp
